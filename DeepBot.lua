@@ -2,7 +2,7 @@
 local discordia = require('discordia')
 local colorize = require('pretty-print').colorize
 local fs = require("fs")
-_G.timer = require("timer")
+local timer = require("timer")
 local http = require('http')
 local json = require("json")
 local http1 = require('coro-http')
@@ -11,7 +11,9 @@ require("lib/utf8")
 require("lib/utf8data")
 local client = discordia.Client:new()
 
-function printLog( text, logType ) -- pretty logs print
+--------- created / rewrited by mcmodder ------
+-- if you got an error here, you know creator and can kill him ;)
+function printLog( text, logType ) -- pretty logs print 
   logType = string.upper(logType or "INFO")
   local logColors = { INFO = "string", LOG = "string", WARN = "highlight", DEBUG= "highlight", ERR = "err", ERROR= "err", FAIL = "failure", FAILURE = "failure"}
   print(colorize(logColors[logType] or "string", "'"..date().."["..logType.."] "..text.."'"))
@@ -24,12 +26,45 @@ function printLog( text, logType ) -- pretty logs print
   end
 end
 
-function read_file(path)
-	local file = io.open(path, "rb")
-	if not file then return nil end
-	local content = file:read "*a"
-	file:close()
-	return content
+function date()
+  return os.date("[%d.%m.%y][%X]")
+end
+
+local function readFile( path )
+  local answer = fs.existsSync(path) and fs.readFileSync(path) or nil
+  return answer
+end
+
+local function sendAndDelete( channel, message, Ttimer )
+  Ttimer = Ttimer or 3000
+  local Tmessage = channel:sendMessage(message)
+  if Tmessage then
+    timer.setTimeout(Ttimer, coroutine.wrap(function()
+      Tmessage:delete()
+    end))
+  end
+end
+
+function WriteFile(path, file, text)
+  return fs.writeFileSync(path.."/"..file..".txt", text)
+end
+------------------------------------------------
+local function tempMute(who, time)
+  unMuteTime = time * 60000
+  local Roles = {}
+  timer.setTimeout(unMuteTime, coroutine.wrap(function()
+    who:setRoles(Roles)
+    message.server:getChannelById(readFile(serverConfig.."Logs.txt")):createMessage(who.name.." was UnTempMuted.")
+  end))
+end
+
+function HasRole(who, roleName)
+  for _, ids in pairs(who.roles) do
+    if ids.name:find(roleName or "Guide") then
+      return true
+    end
+  end
+  return false
 end
 
 
@@ -41,7 +76,7 @@ client:on('memberJoin', function(member)
 	if not fs.existsSync(serverConfig.."Welcome.txt") then
 		member.server.owner:sendMessage("You didn't configure yet my welcome message :(\nPlease run .Welcome HereAllTheWelcomeMessageYouWantForNewUsers.")
 	else
-		member:sendMessage(read_file(serverConfig.."Welcome.txt"))
+		member:sendMessage(readFile(serverConfig.."Welcome.txt"))
 	end
 end)
 
@@ -66,46 +101,11 @@ end)
 
 
 client:on("messageCreate", function(message)
-	if message.server == nil then return end
+  if message.author == client.user or message.server == nil or message.content == nil then return end
 	local carpeta = "serverData/"..message.server.id.."/"
 	local serverConfig = carpeta.."ServerConfig/"
-	_G.sendAndDelete = function( channel, message, Ttimer )
-	  	Ttimer = Ttimer or 3000
-	  	local Tmessage = channel:sendMessage(message)
-	  	if Tmessage then
-	    	timer.setTimeout(Ttimer, coroutine.wrap(function()
-	      		Tmessage:delete()
-	    	end))
-	  	end
-	end
-	_G.TempMute = function(who, time)
-	  	unMuteTime = time * 60000
-	  	local Roles = {}
-	    timer.setTimeout(unMuteTime, coroutine.wrap(function()
-			who:setRoles(Roles)
-			message.server:getChannelById(read_file(serverConfig.."Logs.txt")):createMessage(who.name.." was UnTempMuted.")
-	    end))
-	end
 
-	function date()
-	  return os.date("[%d.%m.%y][%X]")
-	end
-
-	function HasRole(who)
-		for _, ids in pairs(who.roles) do
-		  if ids.name:find("Guide") then
-		    return true
-		  end
-		end
-	end
-
-	function WriteFile(path, file, text)
-		file = io.open(path.."/"..file..".txt", "w")
-		file:write(text)
-		file:close()
-	end
-
-	local cmd, arg = string.match(message.content, '(%S+) (.*)')
+  local cmd, arg = string.match(message.content, '(%S+) (.*)')
 	cmd = cmd or message.content
 
 	if cmd == ".help" then
@@ -114,21 +114,14 @@ client:on("messageCreate", function(message)
 	end
 	local Commander = false
 
-	if message.author == client.user then return end
-
 	if cmd == ".add" then
 		local theRole = string.match(arg, "<@[%d]+> (.*)")
-		Roles = {}
 		if HasRole(message.author) or message.author.id == "191442101135867906" then
-			for _, role in pairs(message.server.roles) do
-				if theRole:find(role.name) then
-					table.insert(Roles, role)
-				end
-			end
+      local theRoleTable = message.server:getRoleByName(theRole)
+
 			for _, member in pairs(message.mentions.members) do
-				for _, role in pairs(member.roles) do
-					table.insert(Roles, role)
-				end
+				local Roles = member.roles
+        Roles[theRoleTable.id] = Roles[theRoleTable.id] or theRoleTable
 				message.channel:sendMessage("<@"..message.author.id.."> granted **"..theRole.."** role to: **"..member.name.."** at "..date().." (GMT+1).")
 				member:setRoles(Roles)
 			end
@@ -159,12 +152,11 @@ client:on("messageCreate", function(message)
 			else
 				if not fs.existsSync(serverConfig.."Logs.txt") then
 					message.channel:sendMessage("Logs channel file not found, creating empty file...")
-					local emptyFile = io.open(serverConfig.."Logs.txt", "w")
-					emptyFile:close()
+					io.open(serverConfig.."Logs.txt", "w"):close()
 					message.channel:sendMessage("Done.\nTo configure properly this file, please use the following command:\n\n.``Logs ChannelIDHere``    :    Example: .Logs 225510824607875072")
 					message.channel:sendMessage("This will set up a channel for the logs of this bot, everytime he bans, kicks, mutes someone it will be written down there.")
 				else
-					logChannel = read_file(serverConfig.."Logs.txt")
+					logChannel = readFile(serverConfig.."Logs.txt")
 					message.channel:sendMessage("```Markdown\nServer Owner: "..message.server.owner.username.."\n#Logs Channel:\n<<"..logChannel..">>\n```")
 				end
 				if not fs.existsSync(serverConfig.."MuteRank.txt") then
@@ -174,7 +166,7 @@ client:on("messageCreate", function(message)
 					message.channel:sendMessage("Done.\nTo configure properly this file, please use the following command:\n\n``.MuteRank RoleName``    :    Example: .MuteRank Muted   REMEMBER that this role MUST exist.")
 					message.channel:sendMessage("This will set up a channel for the logs of this bot, everytime he bans, kicks, mutes someone it will be written down there.")
 				else
-					DefMuted = read_file(serverConfig.."MuteRank.txt")
+					DefMuted = readFile(serverConfig.."MuteRank.txt")
 					message.channel:sendMessage("```Markdown\n#Default Mute Rank:\n<<"..DefMuted..">>\n```")
 				end
 				if not fs.existsSync(serverConfig.."Welcome.txt") then
@@ -183,7 +175,7 @@ client:on("messageCreate", function(message)
 					emptyFile:close()
 					message.channel:sendMessage("Done.\nTo configure properly this file, please use the following command:\n\n``.Welcome Message``    :    Example:  ``.Welcome Hey new user, welcome!``")
 				else
-					WelMess = read_file(serverConfig.."Welcome.txt")
+					WelMess = readFile(serverConfig.."Welcome.txt")
 					message.channel:sendMessage("```Markdown\n#Welcome message:\n<<"..WelMess..">>\n```")
 				end
 			end
@@ -273,25 +265,20 @@ client:on("messageCreate", function(message)
 		if arg == nil then return end
 		local timee = string.match(arg, "<@[%d]+> (.*)")
 		time = tonumber(timee)
-		if read_file(serverConfig.."Logs.txt") == nil then
+		if readFile(serverConfig.."Logs.txt") == nil then
 			message.channel:sendMessage("Please configure first Logs.txt, run ``.Logs ChannelID`` command.")
 			return
 		end
-		if read_file(serverConfig.."MuteRank.txt") == nil then
+		if readFile(serverConfig.."MuteRank.txt") == nil then
 			message.channel:sendMessage("Please configure first MuteRank.txt, run ``.MuteRank Name`` command.")
 			return
 		end
 		Roles = {}
 		if HasRole(message.author) or message.author.id == "191442101135867906" then
-			for _, role in pairs(message.server.roles) do
-				if role.name == read_file(serverConfig.."MuteRank.txt") then
-					table.insert(Roles, role)
-				end
-			end
+      local theRole = message.server:getRoleByName(readFile(serverConfig.."MuteRank.txt"))
 			for _, member in pairs(message.mentions.members) do
-				for _, role in pairs(member.roles) do
-					table.insert(Roles, role)
-				end
+		    local Roles = member.roles
+        Roles[theRole.id] = theRole
 				message.channel:sendMessage("**"..member.name.."** is going to be muted for "..time.." minutes.")
 				TempMute(member, time)
 				member:setRoles(Roles)
@@ -301,31 +288,25 @@ client:on("messageCreate", function(message)
 		end
 	end
 	if cmd == ".mute" then
-		Roles = {}
 		if reason == nil then 
 			message.channel:sendMessage("Enter a reason, please.")
 			return
 		end
 		local reason = string.match(arg, "<@[%d]+> (.*)")
-		if read_file(serverConfig.."Logs.txt") == nil then
+		if readFile(serverConfig.."Logs.txt") == nil then
 			message.channel:sendMessage("Please configure first Logs.txt, run ``.Logs ChannelID`` command.")
 			return
 		end
-		if read_file(serverConfig.."MuteRank.txt") == nil then
+		if readFile(serverConfig.."MuteRank.txt") == nil then
 			message.channel:sendMessage("Please configure first MuteRank.txt, run ``.MuteRank Name`` command.")
 			return
 		end
 		if HasRole(message.author) or message.author.id == "191442101135867906" then
-			for _, role in pairs(message.server.roles) do
-				if role.name == read_file(serverConfig.."MuteRank.txt") then
-					table.insert(Roles, role)
-				end
-			end
+      local theRole = message.server:getRoleByName(readFile(serverConfig.."MuteRank.txt"))
 			for _, member in pairs(message.mentions.members) do
-				for _, role in pairs(member.roles) do
-					table.insert(Roles, role)
-				end
-				message.server:getChannelById(read_file(serverConfig.."Logs.txt")):createMessage("**Mute**: "..date().." \n**User**: "..member.name.." ("..member.id..")\n**Reason**: "..reason.."\n**Responsible Moderator**: "..message.author.name)
+				Roles = member.roles
+        Roles[theRole.id] = theRole
+				message.server:getChannelById(readFile(serverConfig.."Logs.txt")):createMessage("**Mute**: "..date().." \n**User**: "..member.name.." ("..member.id..")\n**Reason**: "..reason.."\n**Responsible Moderator**: "..message.author.name)
 				member:setRoles(Roles)
 				message.channel:sendMessage("<@"..message.author.id.."> muted: **"..member.name.."**.\n\n**REASON**: "..reason)
 			end
@@ -334,22 +315,18 @@ client:on("messageCreate", function(message)
 		end
 	end
 	if cmd == ".unmute" then
-		Roles = {}
-		if read_file(serverConfig.."Logs.txt") == nil then
+		if readFile(serverConfig.."Logs.txt") == nil then
 			message.channel:sendMessage("Please configure first Logs.txt, run ``.Logs ChannelID`` command.")
 			return
 		end
-		if read_file(serverConfig.."MuteRank.txt") == nil then
+		if readFile(serverConfig.."MuteRank.txt") == nil then
 			message.channel:sendMessage("Please configure first MuteRank.txt, run ``.MuteRank Name`` command.")
 			return
 		end
 		if HasRole(message.author) or message.author.id == "191442101135867906" then
 			for _, member in pairs(message.mentions.members) do
-				for _, role in pairs(member.roles) do
-					if not role.name == read_file(serverConfig.."MuteRank.txt") then
-						table.insert(Roles, role)
-					end
-				end
+        local Roles = member.roles
+        Roles[message.server:getRoleByName(readFile(serverConfig.."MuteRank.txt")).id] = nil
 				message.channel:sendMessage("<@"..message.author.id.."> unmuted: **"..member.name.."**.")
 				member:setRoles(Roles)
 			end
@@ -364,13 +341,13 @@ client:on("messageCreate", function(message)
 			return
 		end
 		local reason = string.match(arg, "<@[%d]+> (.*)")
-		if read_file(serverConfig.."Logs.txt") == nil then
+		if readFile(serverConfig.."Logs.txt") == nil then
 			message.channel:sendMessage("Please configure first Logs.txt, run ``.Logs ChannelID`` command.")
 			return
 		end
 		if HasRole(message.author) or message.author.id == "191442101135867906" then
 			for _, member in pairs(message.mentions.members) do
-				message.server:getChannelById(read_file(serverConfig.."Logs.txt")):createMessage("**Kick**: "..date().." \n**User**: "..member.name.." ("..member.id..")\n**Reason**: "..reason.."\n**Responsible Moderator**: "..message.author.name)
+				message.server:getChannelById(readFile(serverConfig.."Logs.txt")):createMessage("**Kick**: "..date().." \n**User**: "..member.name.." ("..member.id..")\n**Reason**: "..reason.."\n**Responsible Moderator**: "..message.author.name)
 				message.server:kickUser(member)
 				message.channel:sendMessage("<@"..message.author.id.."> kicked: **"..member.name.."**.\n\n**REASON**: "..reason)
 				member:sendMessage("<@"..message.author.id.."> kicked you.\n\n**REASON**: "..reason)
@@ -386,13 +363,13 @@ client:on("messageCreate", function(message)
 		end
 		local reason = string.match(arg, "<@[%d]+> (.*)")
 		Roles = {}
-		if read_file(serverConfig.."Logs.txt") == nil then
+		if readFile(serverConfig.."Logs.txt") == nil then
 			message.channel:sendMessage("Please configure first Logs.txt, run ``.Logs ChannelID`` command.")
 			return
 		end
 		if HasRole(message.author) or message.author.id == "191442101135867906" then
 			for _, member in pairs(message.mentions.members) do
-				message.server:getChannelById(read_file(serverConfig.."Logs.txt")):createMessage("**Ban**: "..date().." \n**User**: "..member.name.." ("..member.id..")\n**Reason**: "..reason.."\n**Responsible Moderator**: "..message.author.name)
+				message.server:getChannelById(readFile(serverConfig.."Logs.txt")):createMessage("**Ban**: "..date().." \n**User**: "..member.name.." ("..member.id..")\n**Reason**: "..reason.."\n**Responsible Moderator**: "..message.author.name)
 				message.server:banUser(member)
 				message.channel:sendMessage("<@"..message.author.id.."> Banned: **"..member.name.."**.\n\n**REASON**: "..reason)
 				member:sendMessage("<@"..message.author.id.."> Banned you. \n\n**REASON**: "..reason)
@@ -414,4 +391,4 @@ client:on("messageCreate", function(message)
 	end
 end)
 
-client:run(read_file("DeepBotToken.txt"))
+client:run(readFile("DeepBotToken.txt"))
