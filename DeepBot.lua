@@ -10,6 +10,9 @@ require("table2")
 require("lib/utf8")
 require("lib/utf8data")
 local client = discordia.Client:new()
+math.randomseed(os.time())
+
+-- what is this? Maybe better to make it global? //todo
 local InCDWood = {}
 local InCDIron = {}
 local InCDStone = {}
@@ -29,26 +32,24 @@ function printLog( text, logType ) -- pretty logs print
   end
 end
 
-function date()
+function date() -- just return date in pretty looking format
   return os.date("[%d.%m.%y][%X]")
 end
 
-local function readFile( path )
+local function readFile( path ) -- rewrited Purged's function
   local answer = fs.existsSync(path) and fs.readFileSync(path) or nil
   return answer
 end
 
-local function sendAndDelete( channel, message, Ttimer )
+local function sendAndDelete( channel, message, Ttimer ) -- send message and remove it after Ttimer milliseconds
   Ttimer = Ttimer or 3000
   local Tmessage = channel:sendMessage(message)
   if Tmessage then
-    timer.setTimeout(Ttimer, coroutine.wrap(function()
-      Tmessage:delete()
-    end))
+    timer.setTimeout(Ttimer, coroutine.wrap(Tmessage.delete)(Tmessage))
   end
 end
 
-function WriteFile(path, file, text)
+function WriteFile(path, file, text) -- rewrited Purged's function
   return fs.writeFileSync(path.."/"..file..".txt", text)
 end
 ------------------------------------------------
@@ -75,6 +76,7 @@ function AddToFile(path, file, text)
 	TeamsFile:write(text.."\n")
 	TeamsFile:close()
 end
+--------------------------------------------------
 
 
 -- PONER UN LOOP EN SERVERCONFIGURATION Y PONER: QUIEN TIENE PERMISOS PARA MANEJARLO OWNER + DEEPBOTGUIDES
@@ -152,8 +154,8 @@ client:on(
 		client:setGameName("mrjuicylemon.es/deepBot/")
 		for k, server in pairs(client.servers) do
 			--p(k)
-			if read_file("serverData/"..server.id.."/ServerConfig/Logs.txt") ~= nil then
-				--server:getChannelById(read_file("serverData/"..server.id.."/ServerConfig/Logs.txt")):sendMessage("@here\nI received a new update, Mute, kick and ban commands are fixed now.")
+			if readFile("serverData/"..server.id.."/ServerConfig/Logs.txt") ~= nil then
+				--server:getChannelById(readFile("serverData/"..server.id.."/ServerConfig/Logs.txt")):sendMessage("@here\nI received a new update, Mute, kick and ban commands are fixed now.")
 			end
 		end
 end)
@@ -192,20 +194,20 @@ client:on("messageCreate", function(message)
 			message.channel:sendMessage("```\n"..message.author.username.." has joined Rioters team, Good Luck!\n```")
 		end
 	end
-
+---- todo: start here
 	if cmd == ".resource" then
 		if arg == nil then
 			message.channel:sendMessage("```\nProper usage of this command:\n.resource Wood / .resource Iron / .resource Stone\n```")
 			return
 		end
 		if arg:lower() == "wood" then
-			local WoodCount = read_file(Recollect.."Wood/"..message.author.id..".txt")
+			local WoodCount = readFile(Recollect.."Wood/"..message.author.id..".txt")
 			message.channel:sendMessage("You have "..WoodCount.." pieces of wood.")
 		elseif arg:lower() == "iron" then
-			local IronCount = read_file(Recollect.."Iron/"..message.author.id..".txt")
+			local IronCount = readFile(Recollect.."Iron/"..message.author.id..".txt")
 			message.channel:sendMessage("You have "..IronCount.." iron ores.")
 		elseif arg:lower() == "stone" then
-			local StoneCount = read_file(Recollect.."Stone/"..message.author.id..".txt")
+			local StoneCount = readFile(Recollect.."Stone/"..message.author.id..".txt")
 			message.channel:sendMessage("You have "..StoneCount.." stone ores.")
 		end
 	end
@@ -231,11 +233,11 @@ client:on("messageCreate", function(message)
 			message.channel:sendMessage("```\nPlease join a team before\n.join Discorders / Rioters\n```")
 			return
 		end
-		local WoodCount = tonumber(read_file(Recollect.."Wood/"..message.author.id..".txt"))
+		local WoodCount = tonumber(readFile(Recollect.."Wood/"..message.author.id..".txt"))
 		print(WoodCount)
-		local IronCount = tonumber(read_file(Recollect.."Iron/"..message.author.id..".txt"))
+		local IronCount = tonumber(readFile(Recollect.."Iron/"..message.author.id..".txt"))
 		print(IronCount)
-		local StoneCount = tonumber(read_file(Recollect.."Stone/"..message.author.id..".txt"))
+		local StoneCount = tonumber(readFile(Recollect.."Stone/"..message.author.id..".txt"))
 		print(StoneCount)
 		if arg == nil then
 			message.channel:sendMessage("```Markdown\nProper usage of this command:\n.recruit Troop\n\nAvailable troops:\n<For Discorders>\n·White Wizard\n·Giant\n\n<For Rioters>\n·Black Wizard\n·Vampire\n·Succubus```")
@@ -265,6 +267,9 @@ client:on("messageCreate", function(message)
 	end
 
 	if cmd == ".recollect" then
+    -- rewrite, better use one JSON or serialized lua table
+    -- and better use smth like local team = table.fromFile("Teams..teams.txt")[message.author.id]
+    -- or use smth like "one userdata file per user", it'll be much easier: if fs.existsSync(Teams..message.author.id..".txt") then
 		local team
 		for dUser in io.lines(Teams.."Discorders.txt") do
 			if dUser == message.author.id then
@@ -292,9 +297,10 @@ client:on("messageCreate", function(message)
 			end
 			madera = math.random(3, 12)
 			message.channel:sendMessage("<@"..message.author.id.."> recollected "..madera.." pieces of wood.		Team: "..team)
-			local ActWood = read_file(Recollect.."Wood/"..message.author.id..".txt")
+			local ActWood = readFile(Recollect.."Wood/"..message.author.id..".txt")
 			table.insert(InCDWood, 1, message.author.id)
-			timer.sleep(30000)
+			-- maybe it'll be better to make smth like timer.setTimeout()?
+      timer.sleep(30000)
 			InCDWood[message.author.id] = nil
 			if ActWood ~= nil then
 				ActWood = tonumber(ActWood)
@@ -314,7 +320,7 @@ client:on("messageCreate", function(message)
 			end
 			Iron = math.random(1, 7)
 			message.channel:sendMessage("<@"..message.author.id.."> recollected "..Iron.." iron ores.		Team: "..team)
-			local ActIron = read_file(Recollect.."Iron/"..message.author.id..".txt")
+			local ActIron = readFile(Recollect.."Iron/"..message.author.id..".txt")
 			table.insert(InCDIron, 1, message.author.id)
 			timer.sleep(30000)
 			InCDIron[message.author.id] = nil
@@ -336,7 +342,7 @@ client:on("messageCreate", function(message)
 			end
 			Stone = math.random(1, 7)
 			message.channel:sendMessage("<@"..message.author.id.."> recollected "..Stone.." stones.		Team: "..team)
-			local ActStone = read_file(Recollect.."Stone/"..message.author.id..".txt")
+			local ActStone = readFile(Recollect.."Stone/"..message.author.id..".txt")
 			table.insert(InCDStone, 1, message.author.id)
 			timer.sleep(30000)
 			InCDStone[message.author.id] = nil
@@ -351,7 +357,7 @@ client:on("messageCreate", function(message)
 			end
 		end
 	end
-
+---- end of possible rewrite
 	if cmd == ".add" then
 		local theRole = string.match(arg, "<@[%d]+> (.*)")
 		if HasRole(message.author) or message.author.id == "191442101135867906" then
@@ -616,7 +622,7 @@ client:on("messageCreate", function(message)
 	end
 	if message.content:find("discord.gg") then
 		stopped = false
-		if read_file(serverConfig.."Logs.txt") == nil then
+		if readFile(serverConfig.."Logs.txt") == nil then
 			message.channel:sendMessage("Please configure first Logs.txt, run ``.Logs ChannelID`` command.")
 			return
 		end
@@ -624,13 +630,13 @@ client:on("messageCreate", function(message)
 			if role.name == "Rule Breaker" then
 				message.server:kickUser(message.author)
 				message.channel:sendMessage("Was kicked because he was a Rule Breaker already.")
-				message.server:getChannelById(read_file(serverConfig.."Logs.txt")):createMessage("<@"..message.author.id.."> tried to post a discord link, since he was already a 'Rule Breaker' I kicked him.")
+				message.server:getChannelById(readFile(serverConfig.."Logs.txt")):createMessage("<@"..message.author.id.."> tried to post a discord link, since he was already a 'Rule Breaker' I kicked him.")
 			end
 		end
 		if stopped == false then
 			message.channel:sendMessage("Please <@"..message.author.id.."> don't send discord links.")
 			message:delete()
-			message.server:getChannelById(read_file(serverConfig.."Logs.txt")):createMessage("<@"..message.author.id.."> tried to post a discord link, I deleted it.")
+			message.server:getChannelById(readFile(serverConfig.."Logs.txt")):createMessage("<@"..message.author.id.."> tried to post a discord link, I deleted it.")
 		end
 	end
 
