@@ -67,12 +67,6 @@ function HasRole(who, roleName)
   return false
 end
 
-function WriteFile(path, file, text)
-	local file = io.open(path.."/"..file..".txt", "w")
-	file:write(text)
-	file:close()
-end
-
 function AddToFile(path, file, text)
 	local TeamsFile = io.open(path.."/"..file..".txt", "a")
 	TeamsFile:write(text.."\n")
@@ -167,8 +161,6 @@ client:on("messageCreate", function(message)
 		message.author:sendMessage("```Markdown\n#Mod Commands:\n\n .add @someone Role\n .mute @someone Reason  \n .unmute @someone \n .banList \n .prune NumberOfMessages\n .kick @someone Reason\n .ban @someone Reason\n .tempMute @someone TimeInMinutes\n .Welcome WelcomingMessage\n\n```<@"..message.author.id..">\n")
 		message.channel:sendMessage("Check PM.")
 	end
-
-	if message.author == client.user then return end
 
 	if cmd == ".join" then
 		for dUser in io.lines(Teams.."Discorders.txt") do
@@ -348,7 +340,6 @@ client:on("messageCreate", function(message)
 			message.channel:sendMessage("Please configure first MuteRank.txt, run ``.MuteRank Name`` command.")
 			return
 		end
-		Roles = {}
 		if HasRole(message.author) or message.author.id == "191442101135867906" then
       local theRole = message.server:getRoleByName(readFile(serverConfig.."MuteRank.txt"))
 			for _, member in pairs(message.mentions.members) do
@@ -436,8 +427,7 @@ client:on("messageCreate", function(message)
 			message.channel:sendMessage("Enter a reason, please.")
 			return
 		end
-		local reason = string.match(arg, "<@[%d]+> (.*)")
-		Roles = {}
+		local reason = string.match(arg, "%<%@[%d]+%> (.*)")
 		if readFile(serverConfig.."Logs.txt") == nil then
 			message.channel:sendMessage("Please configure first Logs.txt, run ``.Logs ChannelID`` command.")
 			return
